@@ -230,8 +230,8 @@ class _Run:
         if self.key_points:
             points = "\n".join(f"- {point}" for point in self.key_points)
             key_points_instruction = (
-                "\\nUse these extracted key facts as a checklist, while verifying every detail against "
-                f"the original article:\\n{points}"
+                "\nUse these extracted key facts as a checklist, while verifying every detail against "
+                f"the original article:\n{points}"
             )
         data = self._ask(
             f"Write a factual headline (at most 12 words) and a summary of this news article. "
