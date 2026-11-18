@@ -68,6 +68,7 @@ def test_happy_path(engine):
     assert r.tokens_used == 5 * 100 + 2 * 50                  # loop tokens + tool-internal LLM tokens
     # the article reaches the tool prompts inside tags, flagged as untrusted; /no_think added for Qwen3
     tool_prompt = next(c for c in llm.calls if "tools" not in c)["messages"][0]["content"]
+    assert all("tool_choice" not in c for c in llm.calls)
     assert "<article>" in tool_prompt and "untrusted" in tool_prompt and tool_prompt.endswith("/no_think")
     # the agent loop never sees more than the 300-char preview
     loop_text = json.dumps([c["messages"] for c in llm.calls if "tools" in c])
@@ -110,7 +111,7 @@ def test_token_budget_stops(engine):
 
 def test_model_stops_on_its_own(engine):
     r = agent(engine, FakeLLM([step(call("write_summary", length="short", reason="w")), plain()])).run(ARTICLE)
-    assert not r.complete and r.stop_reason.startswith("Model stopped without saving") and r.summary
+    assert r.complete and r.stop_reason.startswith("Saved the summary using the structured fallback") and r.summary
 
 
 def test_llm_failure_is_captured(engine):
