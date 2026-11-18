@@ -209,10 +209,14 @@ class _Run:
         count = max(3, min(int(count), 6))
         data = self._ask(
             f"Extract the {count} most important factual points from this news article. Prioritise "
-            "the main event, named people and organisations, decisions and outcomes, dates, financial figures, "
-            "percentages, quantities, and forecasts. Preserve exact numbers and what each number refers to. "
-            "Write one concise factual sentence per point. Do not replace specific facts with vague wording, "
-            "and do not add facts that are not in the article.",
+            "the central event, named people and organisations, decisions and outcomes, dates, financial "
+            "figures, percentages, quantities, and forecasts. For every number, preserve its exact value, "
+            "unit, time period, and metric type when stated (for example, revenue, net income, operating "
+            "profit, or segment sales). Distinguish reported results from forecasts, estimates, allegations, "
+            "and opinions. Preserve attribution and uncertainty: do not turn a possibility into a confirmed "
+            "event or an analyst forecast into a company statement. Include the context needed to understand "
+            "each fact. Write one concise factual sentence per point. Do not infer causal relationships or "
+            "add facts that are not explicitly supported by the article.",
             KEY_POINTS_SCHEMA, max_tokens=500,
         )
         self.key_points = [p.strip() for p in data["points"] if p.strip()][:count]
@@ -224,7 +228,7 @@ class _Run:
         focus_line = f" Focus on: {focus}." if focus else ""
         key_points_instruction = ""
         if self.key_points:
-            points = "\\n".join(f"- {point}" for point in self.key_points)
+            points = "\n".join(f"- {point}" for point in self.key_points)
             key_points_instruction = (
                 "\\nUse these extracted key facts as a checklist, while verifying every detail against "
                 f"the original article:\\n{points}"
@@ -234,13 +238,15 @@ class _Run:
             f"The summary must be {LENGTHS[length]}.{focus_line}"
             f"{key_points_instruction} "
             "Prioritise the article's central event and its most consequential supporting facts. "
-            "Preserve important names, decisions, outcomes, figures, percentages, and forecasts exactly. "
-            "For a one-sentence summary, combine the central event with the most important concrete "
-            "detail or figures where possible; do not waste the sentence on vague phrases such as "
-            "'under scrutiny' or 'future strategy' when the article provides specific facts. "
-            "Do not omit major numerical results merely to produce generic wording. "
-            "Do not infer motives, uncertainty, consequences, or context that the article does not state. "
-            "Use only facts supported by the original article; be neutral and concise.",
+            "Preserve names, decisions, outcomes, figures, percentages, forecasts, time periods, and "
+            "financial metric labels exactly as stated. Keep actual results separate from forecasts and "
+            "attribute estimates or opinions to their source. If the article says a person may leave, do "
+            "not state that they have left. If the article describes a board rejecting a proposal, state "
+            "precisely what was rejected; do not rewrite it as a rejection of a person's return unless "
+            "that is what the article says. For one sentence, combine the central event with the most "
+            "important concrete supporting facts. Avoid vague filler such as 'under scrutiny' when specific "
+            "events or figures are available. Do not invent causal links, motives, periods, or implications. "
+            "Use only facts verified against the original article; be neutral, precise, and concise.",
             SUMMARY_SCHEMA, max_tokens=500,
         )
         self.headline, self.summary = data["headline"].strip(), data["summary"].strip()
@@ -287,6 +293,33 @@ class SummaryAgent:
         # Qwen3 "thinks" by default; the notebook turns that off with /no_think.
         self.no_think = " /no_think" if "qwen3" in model.lower() else ""
 
+    def _run_no_tools_fallback(self, run: _Run, length: str, step: int) -> str:
+        """Run the same auditable fact-first path whenever tool calling is unavailable."""
+        run.trace.append({
+            "step": step, "tool": "extract_key_points", "args": {"count": 6},
+            "reason": "Fallback: extract verifiable facts before drafting without tool calling.",
+        })
+        try:
+            run.extract_key_points(count=6)
+        except Exception:
+            # Fact extraction is an aid, not a reason to lose the article-level summary.
+            log.exception("key-point extraction failed; continuing with the original article")
+
+        run.trace.append({
+            "step": step, "tool": "write_summary", "args": {"length": length},
+            "reason": "Write a precise summary using extracted facts and verify them against the article.",
+        })
+        run.write_summary(length=length)
+        if not run.summary:
+            return "The direct summary was empty"
+
+        run.trace.append({
+            "step": step, "tool": "save_summary", "args": {},
+            "reason": "Save the structured direct-fallback summary.",
+        })
+        run.save_summary()
+        return "Saved the summary using the no-tools fallback"
+
     def run(self, text: str, length: str = "short") -> AgentResult:
         run = _Run(self, text)
         messages: list[dict] = [
@@ -307,22 +340,8 @@ class SummaryAgent:
                 calls = msg.tool_calls or []
                 if not calls:
                     # Small local models sometimes return plain text instead of a tool call.
-                    # Do not fail the whole request: make one structured summary call directly.
-                    run.trace.append({
-                        "step": step, "tool": "write_summary",
-                        "args": {"length": length},
-                        "reason": "Fallback: model returned no tool calls; generate summary directly.",
-                    })
-                    run.write_summary(length=length)
-                    if run.summary:
-                        run.trace.append({
-                            "step": step, "tool": "save_summary", "args": {},
-                            "reason": "Save the structured fallback summary.",
-                        })
-                        run.save_summary()
-                        stop_reason = "Saved the summary using the structured fallback"
-                    else:
-                        stop_reason = "Model returned no tool calls and the fallback summary was empty"
+                    # Use the same fact-first structured fallback as providers without tool support.
+                    stop_reason = self._run_no_tools_fallback(run, length, step)
                     break
 
                 messages.append({
@@ -358,31 +377,8 @@ class SummaryAgent:
                 # tool calling. Retry with the same structured-output summary path used by
                 # write_summary, but without sending any tool definitions to the model.
                 log.info("Model %s does not support tool calling; using direct summary fallback.", self.model)
-                run.trace.append({
-                    "step": run.step,
-                    "tool": "write_summary",
-                    "args": {"length": length},
-                    "reason": "Fallback: provider rejected tool calling; generate the summary directly.",
-                })
                 try:
-                    # Build a compact fact checklist before writing. If extraction fails,
-                    # still attempt the summary from the original article.
-                    try:
-                        run.extract_key_points(count=6)
-                    except Exception:
-                        log.exception("key-point extraction failed; continuing with the original article")
-                    run.write_summary(length=length)
-                    if run.summary:
-                        run.trace.append({
-                            "step": run.step,
-                            "tool": "save_summary",
-                            "args": {},
-                            "reason": "Save the structured direct-fallback summary.",
-                        })
-                        run.save_summary()
-                        stop_reason = "Saved the summary using the no-tools fallback"
-                    else:
-                        stop_reason = "Tool calling is unsupported and the direct summary was empty"
+                    stop_reason = self._run_no_tools_fallback(run, length, run.step)
                 except Exception as fallback_error:
                     log.exception("direct summary fallback failed")
                     stop_reason = f"Tool calling is unsupported; direct summary fallback failed: {fallback_error}"
