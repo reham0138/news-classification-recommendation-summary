@@ -39,7 +39,7 @@ export default function Summarize({ text, meta }: { text: string; meta: Meta | n
           ))}
         </fieldset>
         <button type="button" disabled={busy || words < min} onClick={() => run((s) => api.summarize({ text, length }, s))}
-          className="bg-accent px-5 py-2.5 font-semibold text-onaccent hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45">
+          className="rounded-sm bg-accent px-6 py-3 text-sm font-semibold text-onaccent hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45">
           {busy ? "Working…" : "Summarize with agent"}
         </button>
       </div>
