@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+
+.env
+.env.*
+!.env.example
+
+
+backend/artifacts/*
+!backend/artifacts/.gitkeep
+
+
+*.gguf
+*.safetensors
+.vscode/
+Thumbs.db

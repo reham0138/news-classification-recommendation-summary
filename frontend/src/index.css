@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-serif: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-sans: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+  --color-onaccent: var(--on-accent);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+}
+
+/* Newsprint (light) and "night edition" (dark). One accent: cobalt. */
+:root {
+  color-scheme: light;
+  --paper: #f3eee2;
+  --card: #faf7ef;
+  --ink: #1d1c19;
+  --muted: #5f5a4e;
+  --rule: #d2c9b4;
+  --accent: #1f3fd1;
+  --on-accent: #ffffff;
+  --ok: #1f7a46;
+  --warn: #9a5b00;
+  --bad: #b3261e;
+  --cat-l: 30%;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #17181d;
+  --card: #1f2128;
+  --ink: #ece7da;
+  --muted: #a29d90;
+  --rule: #373a44;
+  --accent: #8ea6ff;
+  --on-accent: #10132a;
+  --ok: #6fd39a;
+  --warn: #f0b45a;
+  --bad: #ff8f86;
+  --cat-l: 76%;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+::selection { background: var(--accent); color: var(--on-accent); }
+
+.rule-double { border-top: 3px double var(--ink); }
+
+/* Category colour: set --h (hue) inline; text/background/border follow the theme. */
+.cat {
+  color: hsl(var(--h) 62% var(--cat-l));
+  background: hsl(var(--h) 70% 50% / 0.13);
+  border: 1px solid hsl(var(--h) 60% 50% / 0.38);
+}
+
+/* Winner stamp */
+.stamp {
+  display: inline-flex; flex-direction: column; align-items: center;
+  padding: 0.35rem 1rem 0.45rem;
+  color: hsl(var(--h) 65% var(--cat-l));
+  border: 4px double hsl(var(--h) 60% var(--cat-l));
+  border-radius: 6px;
+  transform: rotate(-3deg);
+  animation: stamp-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+.stamp[data-unsure="true"] { border-style: dashed; opacity: 0.8; }
+@keyframes stamp-in {
+  from { transform: rotate(-12deg) scale(1.9); opacity: 0; }
+  to   { transform: rotate(-3deg) scale(1); opacity: 1; }
+}
+
+.lift { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+.lift:hover { transform: translateY(-3px); box-shadow: 0 8px 18px -10px rgb(0 0 0 / 0.35); border-color: var(--ink); }
+
+.bar-fill { transition: width 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* Progress: a slim bar with a sliding highlight */
+.press { position: relative; height: 3px; background: var(--rule); overflow: hidden; }
+.press::after {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 30%;
+  background: var(--accent); animation: press 1.4s ease-in-out infinite;
+}
+@keyframes press { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.blink { animation: blink 1s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: 0.25; } }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
