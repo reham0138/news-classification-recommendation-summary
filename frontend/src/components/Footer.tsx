@@ -15,8 +15,8 @@ const Arrow = () => (
 
 export default function Footer({ meta }: { meta: Meta | null }) {
   return (
-    <footer className="rule-double mt-20 pb-12 pt-6">
-      <h2 className="font-serif text-2xl font-semibold">How it works</h2>
+    <footer className="rule-double mt-20 pb-12 pt-7">
+      <h2 className="font-serif text-2xl font-semibold tracking-tight">Inside the newsroom</h2>
       <ol className="mt-5 flex flex-col items-stretch gap-2 md:flex-row md:items-start">
         {STEPS.flatMap(([title, body], i) => [
           i > 0 && <li key={`a${i}`} aria-hidden className="flex items-center justify-center md:pt-1"><Arrow /></li>,
