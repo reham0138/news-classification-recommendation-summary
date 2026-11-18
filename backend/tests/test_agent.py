@@ -129,8 +129,11 @@ def test_unsupported_tool_calling_uses_direct_summary_fallback(engine):
     assert [item["tool"] for item in r.trace] == ["write_summary", "save_summary"]
     assert r.trace[0]["args"] == {"length": "one_sentence"}
     assert "tools" in llm.calls[0]  # first attempt identifies the provider limitation
-    assert "tools" not in llm.calls[1]  # retry is a direct structured-output request
-    assert "response_format" in llm.calls[1]
+    assert all("tools" not in request for request in llm.calls[1:])
+    assert len([request for request in llm.calls if "response_format" in request]) == 2
+    summary_prompt = llm.calls[-1]["messages"][0]["content"]
+    assert "Preserve important names, decisions, outcomes, figures" in summary_prompt
+    assert "Point A." in summary_prompt
 
 
 def test_llm_failure_is_captured(engine):
