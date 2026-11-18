@@ -1,138 +1,299 @@
-# News Intelligence — production backend
+# News Intelligence
 
-Paste a news article → get its category (with probabilities) and the most similar articles.
-Also: free-text semantic search over the corpus.
+**An AI-powered news analysis system** that classifies articles, retrieves semantically related stories, searches a news corpus, and generates fact-aware summaries through a local LLM agent.
 
-**One classifier:** calibrated LinearSVC on BGE-large embeddings — the winner of your notebook
-comparison (val F1 0.792, test F1 0.797, 5-fold CV 0.793 ± 0.008; fastest and simplest of the four).
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react&logoColor=111827)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![License](https://img.shields.io/badge/License-not%20specified-lightgrey)](#)
 
+---
+
+## Overview
+
+News Intelligence combines **supervised text classification**, **dense semantic retrieval**, and **LLM-based agentic summarization** in one application.
+
+Given a news article, the system can:
+
+- Predict its topic across **14 news categories**, with calibrated class probabilities and a confidence indicator.
+- Retrieve semantically similar articles from an indexed corpus using cosine similarity.
+- Run classification and retrieval together through a single analysis request and a shared embedding.
+- Search the corpus using a natural-language query, optionally filtered by category.
+- Generate a headline, key points, and a length-controlled summary using a tool-using agent backed by a local Ollama model.
+
+The core ML pipeline does not rely on a generative model to classify articles. It uses BGE sentence embeddings and a calibrated LinearSVC classifier. The LLM is a separate component used for summarization.
+
+## AI architecture
+
+```mermaid
+flowchart TD
+    A[News article / search query] --> B[Text cleaning]
+    B --> C[BGE-large sentence embeddings]
+    C --> D[Calibrated LinearSVC]
+    C --> E[Cosine similarity retrieval]
+    D --> F[Category + probabilities]
+    E --> G[Related articles]
+    F --> H[FastAPI response]
+    G --> H
+    A --> I[Summary Agent]
+    I --> J[Agent tools]
+    J --> D
+    J --> E
+    J --> K[Local Ollama LLM]
+    K --> L[Key points + headline + summary]
+    L --> H
+    H --> M[React interface]
 ```
-backend/
-  training/train.py     one script: data -> evaluate -> fit -> save artifacts
-  app/                  the API (FastAPI)
-    engine.py           embed -> classify / similar / search
-    agent.py            tool-using summary agent
-    main.py             endpoints          schemas.py   request/response shapes
-  artifacts/            created by train.py (not in git)
-  tests/                smoke tests (no model download needed)
+
+The classifier, retrieval engine, and summary agent are separate services inside the backend. The React application consumes them through a typed API client.
+
+For implementation details, see [Architecture](docs/ARCHITECTURE.md) and [Model Card](docs/MODEL_CARD.md).
+
+## Technical highlights
+
+### 1. Embedding-based news classification
+
+- **Embedding model:** `BAAI/bge-large-en-v1.5` (1,024-dimensional vectors).
+- **Classifier:** `CalibratedClassifierCV(LinearSVC)`, with `class_weight="balanced"`, sigmoid calibration, and 3-fold calibration CV.
+- **Output:** top-k category predictions with probabilities.
+- **Confidence handling:** the API marks a prediction as confident when its top probability is at least `0.50`; this is a configurable threshold, not a guarantee of correctness.
+- **Input handling:** shared text cleaning between training and inference; minimum input length is 20 words, with a reliability warning for articles shorter than the recommended 200 words.
+
+The production classifier was selected after comparing several approaches in the accompanying model-development work. The notebook comparison reported a **macro F1 of 0.792 on validation** and **0.797 on the held-out test set**; 5-fold CV macro F1 was **0.793 ± 0.008**. These are experiment results, not a promise that every retraining run will reproduce the same scores. The training script writes fresh evaluation metrics to the artifact bundle.
+
+### 2. Semantic retrieval
+
+The same BGE embedding space powers related-article retrieval and search:
+
+- Corpus vectors are L2-normalized and stored as a dense NumPy matrix.
+- Cosine similarity is computed efficiently as a matrix-vector dot product.
+- Classification and related-article retrieval reuse the same article embedding in `/analyze`.
+- Short search queries use BGE's query instruction, while article embeddings follow the exact preprocessing used during classifier training.
+- Retrieval can be filtered by predicted category and/or a minimum similarity threshold.
+
+This is **semantic retrieval**, not keyword matching or a generative answer.
+
+### 3. Tool-using summarization agent
+
+The summarization component is an agent loop, not a single prompt that returns a block of text.
+
+It has tools for:
+
+| Tool | Role | Responsibility |
+|---|---|---|
+| `get_article_overview` | LOOK | Inspect word count and article preview |
+| `classify_article` | LOOK | Reuse the trained classifier |
+| `find_related_articles` | LOOK | Retrieve related corpus items |
+| `extract_key_points` | ACT | Extract structured, source-grounded facts |
+| `write_summary` | ACT | Produce a headline and requested summary length |
+| `save_summary` | ACT | Mark a completed result |
+
+The LLM chooses the tool sequence, while backend code enforces tool validation, per-request state, maximum steps, and a token budget. Structured JSON output is used for key-point extraction and summary generation. The prompts explicitly preserve names, figures, units, time periods, attribution, and uncertainty, and instruct the model not to invent unsupported causal claims.
+
+If a model does not support tool calling, the agent uses a direct structured-output fallback with the same fact-first sequence. The API returns a trace for inspection; the frontend presents the result with a simple loading state rather than exposing internal agent steps.
+
+**Default LLM:** `qwen3:0.6b` through local Ollama.  
+**Alternative tested in the project:** `gemma3:1b`.
+
+No hosted LLM API key is required for the default setup.
+
+## Technology stack
+
+| Layer | Technologies |
+|---|---|
+| ML / NLP | Python, Sentence Transformers, BGE-large, scikit-learn, NumPy, pandas |
+| Classification | LinearSVC + sigmoid probability calibration |
+| Retrieval | Dense vector index, cosine similarity |
+| Summarization | Tool-using LLM agent, Ollama, structured JSON output |
+| Backend | FastAPI, Pydantic, Uvicorn |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS v4 |
+
+## Repository structure
+
+```text
+.
+├── backend/
+│   ├── app/
+│   │   ├── agent.py          # Tool-using summary agent and fallback
+│   │   ├── config.py         # Runtime configuration
+│   │   ├── embedder.py       # BGE embedding adapter
+│   │   ├── engine.py         # Classification and retrieval inference
+│   │   ├── local_llm.py      # Ollama-compatible chat client
+│   │   ├── main.py           # FastAPI application and endpoints
+│   │   ├── schemas.py        # Request / response validation
+│   │   └── text.py           # Shared text cleaning and category mapping
+│   ├── training/
+│   │   └── train.py          # Evaluation, classifier training, artifact export
+│   ├── tests/                # API, agent, and local-LLM tests
+│   └── artifacts/             # Generated model and corpus files (not committed)
+├── docs/
+│   ├── ARCHITECTURE.md
+│   └── MODEL_CARD.md
+└── frontend/
+    ├── public/images/         # Category artwork
+    └── src/
+        ├── api.ts             # Typed API client
+        ├── hooks.ts           # Backend status and UI hooks
+        └── components/        # Article analysis, summary, search, and layout
 ```
 
-## Step 1 — set up (once)
+## Getting started
+
+### Prerequisites
+
+- Python 3.10 or newer.
+- Node.js 20 or newer and npm.
+- [Ollama](https://ollama.com/) for local summarization.
+- The cleaned training CSV and its matching precomputed BGE embeddings if you need to regenerate the model artifacts.
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/reham0138/news-classification-recommendation-summary.git
+cd news-classification-recommendation-summary
+```
+
+### 2. Prepare the backend environment
+
+**Windows PowerShell:**
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+```
+
+**macOS / Linux:**
 
 ```bash
 cd backend
 python -m venv .venv
-.venv\Scripts\activate            # Windows   (macOS/Linux: source .venv/bin/activate)
+source .venv/bin/activate
 pip install -r requirements-dev.txt
-pytest                            # 22 tests should pass
 ```
 
-## Step 2 — train and export artifacts
+### 3. Prepare model artifacts
 
-Use the two files your notebook already produced (cleaned CSV + its embeddings):
+The generated model artifacts are intentionally excluded from Git. The training script expects:
+
+- A cleaned CSV containing `title`, `content`, and `category` columns.
+- A matching `.npy` file containing BGE embeddings in the **same row order** as the CSV.
+
+The embedding file must be generated from that exact dataset with `BAAI/bge-large-en-v1.5`. The training script checks row alignment and normalizes vectors when needed.
+
+From the `backend/` directory:
 
 ```bash
-python -m training.train --data PATH\TO\final_data_V2.csv --embeddings PATH\TO\final_data_embeddings.npy
+python -m training.train --data PATH/TO/final_data_V2.csv --embeddings PATH/TO/final_data_embeddings.npy
 ```
 
-It prints the metrics and writes `artifacts/` (~50 MB: model, corpus embeddings, corpus.csv, metrics.json).
-Re-run it any time you change the data. No UMAP/HDBSCAN files are needed any more.
+This creates `backend/artifacts/` containing:
 
-## Step 3 — run the API
+- `model_bundle.joblib` — calibrated classifier, classes, model metadata, and metrics.
+- `corpus_embeddings.npy` — normalized vectors used for retrieval.
+- `corpus.csv` — article metadata aligned with the vector index.
+- `metrics.json` — evaluation report.
+
+If you already have a compatible artifact bundle, place it in `backend/artifacts/` and skip retraining. The embedding model name used by the API must match the one recorded in the bundle.
+
+### 4. Configure and start Ollama
+
+In a separate terminal:
 
 ```bash
-uvicorn app.main:app --port 8000
-```
-
-First start downloads/loads the BGE model (~1.3 GB, 10–30 s). Then open
-http://localhost:8000/docs — an interactive page where you can try every endpoint.
-
-## API contract (what React calls)
-
-| Method | Path | Body | Returns |
-|---|---|---|---|
-| POST | `/api/v1/summarize` | `{text, length: "one_sentence"\|"short"\|"detailed"}` | `{complete, stop_reason, steps, tokens_used, category, category_confident, headline, summary, key_points, related, trace}` (local Ollama by default) |
-| GET | `/health` | – | `{status: "ok" \| "loading"}` |
-| GET | `/api/v1/meta` | – | categories, model info, metrics, thresholds (for labels/colours/footer) |
-| POST | `/api/v1/classify` | `{text, top_k=3}` | `{top_category, confident, predictions:[{label, probability}], warnings}` |
-| POST | `/api/v1/analyze` | `{text, top_k_categories=3, top_k_similar=5, same_category=false, min_similarity?}` | classify result + `similar:[{id,title,snippet,category,similarity}]` |
-| POST | `/api/v1/search` | `{query, top_k=8, category?, min_similarity?}` | `{results:[{id,title,snippet,category,similarity}]}` |
-
-- The "Analyze" button in the page should call **`/analyze`** (one request, one embedding pass).
-- `confident: false` means the top probability is below 0.50 → show a "low confidence" badge (this replaces the old "Miscellaneous/noise" idea).
-- Errors: `422` = bad input (too short < 20 words, blank, unknown category), `503` = model still loading.
-- CORS already allows `http://localhost:5173` (Vite) and `:3000`. Add more with `CORS_ORIGINS="https://my.site,http://localhost:5173"`.
-
-Quick test from a terminal:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/analyze -H "Content-Type: application/json" ^
-     -d "{\"text\": \"<paste 200+ words>\", \"top_k_similar\": 3}"
-```
-
-## The summary agent (`app/agent.py`)
-
-Same pattern as your `Reham_Mayea_Examples_3` notebook: the local Ollama model chooses which tools
-to call, our code sets the rules. The default is `qwen3:0.6b`; you can switch to `gemma3:1b`. If the model returns plain text instead of tool calls, or the provider explicitly rejects tool calling
-(for example, Ollama's `gemma3:1b`), the backend falls back to a direct structured summary request
-without sending tool definitions. Both fallback cases use the same fact-first sequence: extract up to six key facts, write the requested summary while checking those facts against the original article, then save it. The API trace reports these steps explicitly. Extraction preserves financial metric labels and periods, distinguishes reported results from forecasts, and avoids unsupported causal claims.
-
-| Tool | Type | What it does |
-|---|---|---|
-| `get_article_overview` | LOOK | word count + first 300 characters |
-| `classify_article` | LOOK | **your trained classifier** → category + confidence |
-| `find_related_articles` | LOOK | **your corpus index** → similar articles |
-| `extract_key_points` | ACT | LLM, structured JSON; preserves names, figures, periods, metric types, and attribution |
-| `write_summary` | ACT | LLM headline + summary (`one_sentence` / `short` / `detailed`, optional focus) |
-| `save_summary` | ACT | finish (refuses if no summary exists yet) |
-
-Every call carries a `reason`; the API returns them as `trace`, so the React page can show "what the agent did". In the no-tools fallback, the trace explicitly shows `extract_key_points` → `write_summary` → `save_summary`.
-Stop conditions: `save_summary` succeeded, `AGENT_MAX_STEPS` (12), or `AGENT_TOKEN_BUDGET` (40,000 tokens,
-counting the LLM calls made inside the tools too). If it stops early, the draft summary (if any) is still returned with
-`complete: false`; if nothing was produced the API answers `502`.
-
-Summarising uses Ollama locally by default; no Hugging Face key is required. Install and start Ollama, then pull one of the supported local models:
-
-```powershell
 ollama pull qwen3:0.6b
-# Optional alternative:
+ollama serve
+```
+
+If Ollama is already running as a background service, the `ollama serve` command is not needed.
+
+Optional alternative:
+
+```bash
 ollama pull gemma3:1b
 ```
 
-Start the backend with the default model (`qwen3:0.6b`):
+### 5. Start the backend
 
-```powershell
-uvicorn app.main:app --port 8000
+From `backend/`, with the virtual environment activated:
+
+```bash
+uvicorn app.main:app --reload --port 8000
 ```
 
-To use Gemma 3 1B instead, set the model before starting the server:
+The first startup downloads/loads `BAAI/bge-large-en-v1.5` if it is not cached. Once ready:
 
-```powershell
-$env:LOCAL_LLM_MODEL="gemma3:1b"
-uvicorn app.main:app --port 8000
+- API health: http://localhost:8000/health
+- Interactive API docs: http://localhost:8000/docs
+
+### 6. Start the frontend
+
+Open a new terminal at the repository root:
+
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-Ollama must be running at `http://localhost:11434`. Override `LOCAL_LLM_URL` if it listens elsewhere.
-The tests use a scripted fake LLM, so they check the agent loop and fallback behavior, not the quality of either local model; test both with real articles. Hugging Face remains an optional provider (`LLM_PROVIDER=huggingface` plus `HF_API_KEY`), not the default.
+Open http://localhost:5173.
 
-## Settings (environment variables, all optional)
+To point the frontend at another backend URL, copy `frontend/.env.example` to `.env` and set:
 
-`ARTIFACTS_DIR`, `CONFIDENCE_THRESHOLD` (0.50), `MIN_WORDS` (20), `RECOMMENDED_WORDS` (200), `CORS_ORIGINS`,
-`HF_API_KEY` (optional remote provider), `LLM_PROVIDER` (`ollama` by default), `LOCAL_LLM_URL` (`http://localhost:11434/v1`), `LOCAL_LLM_MODEL` (`qwen3:0.6b`, or `gemma3:1b`), `LLM_MODEL` (remote Hugging Face model), `AGENT_MAX_STEPS` (12), `AGENT_TOKEN_BUDGET` (40000).
+```env
+VITE_API_URL=http://localhost:8000
+```
 
-## What changed vs. the Streamlit app, and why
+Only the backend should contain model/provider configuration. Do not put private API keys in frontend environment variables.
 
-- **Dropped UMAP + HDBSCAN from serving.** They added a 145 MB model, slow start-up and a fragile
-  `approximate_predict` step, and the classifier does not use them. They stay in the notebook as your
-  clustering analysis. "Similar articles" is now plain cosine search (optionally limited to the predicted category).
-- **Dropped the voting ensemble and the other 3 algorithms** — the notebook already chose LinearSVC over the ensemble.
-- **No prefix when embedding articles.** The old app prepended `"Represent this sentence: "` at inference, but the
-  classifier was trained on embeddings made *without* it, so train and serve didn't match. Articles are now embedded
-  exactly like the training corpus; only short `/search` queries use BGE's official query instruction.
-- Replaced the rule-based "summary" text with structured data; the React page builds its own wording.
-- Model bundle records the scikit-learn version and embedding model name and refuses to start on an embedding-model mismatch.
+## API reference
 
-## Next steps
+Base path: `/api/v1`
 
-1. React page (Vite + TypeScript): textarea + word counter → `/analyze` → probability bars + similar-article cards; a "Summarize" button → `/summarize` (show the agent `trace`); a search box → `/search`.
-2. Deployment: Docker image for the backend; build the React app and host it anywhere static.
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/classify` | Return top-k category predictions and confidence |
+| `POST` | `/analyze` | Classify an article and retrieve similar articles in one embedding pass |
+| `POST` | `/search` | Search the corpus using a semantic query |
+| `POST` | `/summarize` | Run the LLM summary agent |
+| `GET` | `/meta` | Return categories, model metadata, corpus size, and metrics |
+| `GET` | `/health` | Report whether the backend engine is ready |
+
+Open `/docs` while the backend is running for the complete request and response schemas.
+
+## Frontend
+
+The frontend is a lightweight React single-page interface. Users paste an article once, run classification and related-story analysis, request a summary, or search the indexed corpus. It includes category-aware article cards, probability indicators, dark mode, and responsive layouts. The AI logic remains in the Python backend; the frontend is responsible for interaction and presentation.
+
+## Tests
+
+From `backend/` with the development dependencies installed:
+
+```bash
+pytest
+```
+
+The tests use fake embeddings and scripted LLM/Ollama responses. They cover API contracts, validation, classification/retrieval behavior, agent tool execution, fallback paths, token/step limits, and local-client integration. They **do not measure real LLM summary quality** or replace an end-to-end test with the trained artifacts and actual Ollama models.
+
+Frontend checks:
+
+```bash
+cd frontend
+npm run typecheck
+npm run build
+```
+
+## Limitations
+
+- Classification quality depends on the training corpus, its category balance, and how representative it is of new articles.
+- The confidence flag is based on a configurable probability threshold; it is not a calibrated guarantee that a prediction is correct in every domain.
+- Similarity scores measure embedding-space proximity, not factual agreement or source reliability.
+- Summary quality depends on the selected local LLM. Always verify important names, numbers, dates, and claims against the original article.
+- The default BGE model is relatively large; the first startup requires a model download and sufficient memory.
+- The application currently uses a local corpus index. It does not continuously ingest live news.
+
+## License
+
+No license has been specified yet. Until one is added, the repository should not be assumed to grant permissions for reuse or redistribution.
