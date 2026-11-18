@@ -73,8 +73,9 @@ curl -X POST http://localhost:8000/api/v1/analyze -H "Content-Type: application/
 ## The summary agent (`app/agent.py`)
 
 Same pattern as your `Reham_Mayea_Examples_3` notebook: the local Ollama model chooses which tools
-to call, our code sets the rules. The default is `qwen3:0.6b`; you can switch to `gemma3:1b`. If the model returns
-plain text instead of tool calls, the backend falls back to a direct structured summary request.
+to call, our code sets the rules. The default is `qwen3:0.6b`; you can switch to `gemma3:1b`. If the model returns plain text instead of tool calls, or the provider explicitly rejects tool calling
+(for example, Ollama's `gemma3:1b`), the backend falls back to a direct structured summary request
+without sending tool definitions. The summary is then saved by the backend.
 
 | Tool | Type | What it does |
 |---|---|---|
