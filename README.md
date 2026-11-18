@@ -75,18 +75,18 @@ curl -X POST http://localhost:8000/api/v1/analyze -H "Content-Type: application/
 Same pattern as your `Reham_Mayea_Examples_3` notebook: the local Ollama model chooses which tools
 to call, our code sets the rules. The default is `qwen3:0.6b`; you can switch to `gemma3:1b`. If the model returns plain text instead of tool calls, or the provider explicitly rejects tool calling
 (for example, Ollama's `gemma3:1b`), the backend falls back to a direct structured summary request
-without sending tool definitions. The summary is then saved by the backend.
+without sending tool definitions. Both fallback cases use the same fact-first sequence: extract up to six key facts, write the requested summary while checking those facts against the original article, then save it. The API trace reports these steps explicitly. Extraction preserves financial metric labels and periods, distinguishes reported results from forecasts, and avoids unsupported causal claims.
 
 | Tool | Type | What it does |
 |---|---|---|
 | `get_article_overview` | LOOK | word count + first 300 characters |
 | `classify_article` | LOOK | **your trained classifier** → category + confidence |
 | `find_related_articles` | LOOK | **your corpus index** → similar articles |
-| `extract_key_points` | ACT | LLM, structured JSON, only facts from the article |
+| `extract_key_points` | ACT | LLM, structured JSON; preserves names, figures, periods, metric types, and attribution |
 | `write_summary` | ACT | LLM headline + summary (`one_sentence` / `short` / `detailed`, optional focus) |
 | `save_summary` | ACT | finish (refuses if no summary exists yet) |
 
-Every call carries a `reason`; the API returns them as `trace`, so the React page can show "what the agent did".
+Every call carries a `reason`; the API returns them as `trace`, so the React page can show "what the agent did". In the no-tools fallback, the trace explicitly shows `extract_key_points` → `write_summary` → `save_summary`.
 Stop conditions: `save_summary` succeeded, `AGENT_MAX_STEPS` (12), or `AGENT_TOKEN_BUDGET` (40,000 tokens,
 counting the LLM calls made inside the tools too). If it stops early, the draft summary (if any) is still returned with
 `complete: false`; if nothing was produced the API answers `502`.
