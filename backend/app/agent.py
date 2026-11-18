@@ -278,14 +278,32 @@ class SummaryAgent:
         try:
             for step in range(1, self.max_steps + 1):
                 run.step = step
+                # Ollama supports tool definitions, but its OpenAI-compatible endpoint does not
+                # support the OpenAI `tool_choice` parameter. Let the model choose naturally.
                 resp = self.client.chat.completions.create(
-                    model=self.model, messages=messages, tools=TOOLS, tool_choice="auto", max_tokens=1000,
+                    model=self.model, messages=messages, tools=TOOLS, max_tokens=1000,
                 )
                 run.tokens += _tokens(resp)
                 msg = resp.choices[0].message
                 calls = msg.tool_calls or []
                 if not calls:
-                    stop_reason = "Model stopped without saving"
+                    # Small local models sometimes return plain text instead of a tool call.
+                    # Do not fail the whole request: make one structured summary call directly.
+                    run.trace.append({
+                        "step": step, "tool": "write_summary",
+                        "args": {"length": length},
+                        "reason": "Fallback: model returned no tool calls; generate summary directly.",
+                    })
+                    run.write_summary(length=length)
+                    if run.summary:
+                        run.trace.append({
+                            "step": step, "tool": "save_summary", "args": {},
+                            "reason": "Save the structured fallback summary.",
+                        })
+                        run.save_summary()
+                        stop_reason = "Saved the summary using the structured fallback"
+                    else:
+                        stop_reason = "Model returned no tool calls and the fallback summary was empty"
                     break
 
                 messages.append({
