@@ -333,8 +333,37 @@ class SummaryAgent:
             else:
                 stop_reason = "Reached the maximum number of steps"
         except Exception as e:
-            log.exception("agent failed")
-            stop_reason = f"Error: {e}"
+            error_text = str(e).lower()
+            if "does not support tools" in error_text or "does not support tool calling" in error_text:
+                # Some local models (for example, Gemma 3 1B in Ollama) do not implement
+                # tool calling. Retry with the same structured-output summary path used by
+                # write_summary, but without sending any tool definitions to the model.
+                log.info("Model %s does not support tool calling; using direct summary fallback.", self.model)
+                run.trace.append({
+                    "step": run.step,
+                    "tool": "write_summary",
+                    "args": {"length": length},
+                    "reason": "Fallback: provider rejected tool calling; generate the summary directly.",
+                })
+                try:
+                    run.write_summary(length=length)
+                    if run.summary:
+                        run.trace.append({
+                            "step": run.step,
+                            "tool": "save_summary",
+                            "args": {},
+                            "reason": "Save the structured direct-fallback summary.",
+                        })
+                        run.save_summary()
+                        stop_reason = "Saved the summary using the no-tools fallback"
+                    else:
+                        stop_reason = "Tool calling is unsupported and the direct summary was empty"
+                except Exception as fallback_error:
+                    log.exception("direct summary fallback failed")
+                    stop_reason = f"Tool calling is unsupported; direct summary fallback failed: {fallback_error}"
+            else:
+                log.exception("agent failed")
+                stop_reason = f"Error: {e}"
 
         if not run.saved and run.summary:
             stop_reason += ". Returning the unsaved draft summary."
