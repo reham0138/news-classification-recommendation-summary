@@ -13,16 +13,16 @@ export default function App() {
   return (
     <>
       <a href="#analyze" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-20 focus:bg-accent focus:px-3 focus:py-2 focus:text-onaccent">Skip to the analyzer</a>
-      <div className="mx-auto max-w-5xl px-5 sm:px-8">
+      <div className="mx-auto max-w-6xl px-5 sm:px-8 lg:px-10">
         <Hero conn={conn} meta={meta} />
-        <main>
-          <Section id="analyze" title="Analyze an article" intro="Get its category, how sure the model is, and the closest stories in the archive.">
+        <main className="pb-4">
+          <Section id="analyze" title="Analyze an article" intro="Give a story its place: see the predicted desk, confidence levels, and the closest reporting in your archive.">
             <Analyze text={text} setText={setText} meta={meta} />
           </Section>
-          <Section id="summarize" title="Summarize with an agent" intro="An AI agent reads, classifies and writes. Every step it takes is shown.">
+          <Section id="summarize" title="The essential briefing" intro="An AI agent extracts key facts and produces a concise, structured account. Follow every step it takes.">
             <Summarize text={text} meta={meta} />
           </Section>
-          <Section id="search" title="Search the archive" intro="Find articles by topic, even when the words don’t match exactly.">
+          <Section id="search" title="Explore the archive" intro="Search by meaning, not just matching words. Find related reporting across your collection.">
             <Search meta={meta} />
           </Section>
         </main>
