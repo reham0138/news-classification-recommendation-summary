@@ -3,68 +3,49 @@ import type { SimilarArticle } from "../api";
 import CategoryChip from "./CategoryChip";
 import { catStyle } from "../lib";
 
-const IMAGE_ROOT = "/images/";
-const PLACEHOLDER = `${IMAGE_ROOT}editorial-placeholder.svg`;
-
-// Match specific subjects before falling back to the model's predicted category.
-// These are local illustrations: no remote image requests or API keys are used.
-const TOPIC_RULES: Array<{ image: string; keywords: string[] }> = [
-  { image: "technology.svg", keywords: ["artificial intelligence", " ai ", "software", "cyber", "hack", "robot", "chip", "nvidia", "google", "apple", "microsoft", "tech", "digital", "semiconductor", "computer", "smartphone"] },
-  { image: "business.svg", keywords: ["stock", "market", "economy", "economic", "business", "company", "companies", "bank", "finance", "financial", "trade", "investment", "investor", "shares", "inflation", "startup", "ceo", "profit"] },
-  { image: "politics.svg", keywords: ["election", "president", "government", "minister", "parliament", "congress", "senate", "politic", "policy", "vote", "voting", "campaign", "white house", "prime minister"] },
-  { image: "sports.svg", keywords: ["football", "soccer", "basketball", "tennis", "cricket", "olympic", "fifa", "nba", "league", "championship", "tournament", "player", "coach", "match", "goal", "team"] },
-  { image: "health.svg", keywords: ["health", "hospital", "doctor", "medical", "medicine", "patient", "disease", "cancer", "virus", "vaccine", "drug", "clinical", "outbreak", "mental health"] },
-  { image: "science.svg", keywords: ["science", "scientist", "research", "study", "space", "nasa", "astronomy", "discovery", "experiment", "physics", "biology", "quantum", "researcher"] },
-  { image: "weather.svg", keywords: ["weather", "climate", "temperature", "storm", "forecast", "rain", "snow", "heatwave", "hurricane", "flood warning", "meteorological"] },
-  { image: "environment.svg", keywords: ["environment", "environmental", "wildlife", "forest", "deforestation", "pollution", "emission", "emissions", "renewable", "solar", "wind energy", "biodiversity", "conservation", "carbon"] },
-  { image: "crime.svg", keywords: ["crime", "police", "court", "lawsuit", "arrest", "murder", "fraud", "criminal", "investigation", "trial", "judge", "prison", "suspect", "prosecutor"] },
-  { image: "disaster.svg", keywords: ["earthquake", "disaster", "wildfire", "tsunami", "landslide", "evacuation", "explosion", "casualties", "rescue", "emergency", "volcano"] },
-  { image: "education.svg", keywords: ["education", "school", "university", "student", "teacher", "classroom", "college", "exam", "curriculum", "scholarship", "campus"] },
-  { image: "arts_entertainment.svg", keywords: ["movie", "film", "music", "celebrity", "actor", "actress", "singer", "album", "concert", "festival", "entertainment", "art", "artist", "tv series"] },
-  { image: "lifestyle.svg", keywords: ["lifestyle", "fashion", "food", "restaurant", "travel", "tourism", "recipe", "beauty", "wellness", "home", "culture"] },
-];
-
+// One stable editorial photo per category. Images are served by Unsplash;
+// no API key, search request, or per-article image matching is involved.
 const CATEGORY_IMAGES: Record<string, string> = {
-  technology: "technology.svg",
-  business: "business.svg",
-  politics: "politics.svg",
-  sports: "sports.svg",
-  health: "health.svg",
-  science: "science.svg",
-  weather: "weather.svg",
-  environment: "environment.svg",
-  crime: "crime.svg",
-  disaster: "disaster.svg",
-  education: "education.svg",
-  arts_entertainment: "arts_entertainment.svg",
-  lifestyle: "lifestyle.svg",
-  religion: "religion.svg",
+  crime: "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=900&q=80",
+  lifestyle: "https://images.unsplash.com/photo-1511988617509-a57c8a288659?auto=format&fit=crop&w=900&q=80",
+  disaster: "https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=900&q=80",
+  religion: "https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=900&q=80",
+  weather: "https://images.unsplash.com/photo-1534088568595-a066f410bcda?auto=format&fit=crop&w=900&q=80",
+  sports: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=900&q=80",
+  environment: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=900&q=80",
+  health: "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&w=900&q=80",
+  science: "https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=900&q=80",
+  business: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=900&q=80",
+  technology: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=900&q=80",
+  education: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=900&q=80",
+  politics: "https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?auto=format&fit=crop&w=900&q=80",
+  arts_entertainment: "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=900&q=80",
 };
 
-function getArticleImage(article: SimilarArticle): string {
-  const text = ` ${article.title} ${article.snippet} `.toLowerCase().replace(/[^a-z0-9]+/g, " ");
-  const match = TOPIC_RULES.find((rule) =>
-    rule.keywords.some((keyword) => text.includes(keyword.trim().toLowerCase()))
-  );
-  const category = article.category.trim().toLowerCase().replace(/[\s-]+/g, "_");
-  return IMAGE_ROOT + (match?.image ?? CATEGORY_IMAGES[category] ?? "editorial-placeholder.svg");
+const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=900&q=80";
+
+function getCategoryImage(category: string): string {
+  const key = category.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return CATEGORY_IMAGES[key] ?? FALLBACK_IMAGE;
 }
 
 function useFallbackImage(event: SyntheticEvent<HTMLImageElement>) {
   const image = event.currentTarget;
-  if (!image.src.endsWith(PLACEHOLDER)) image.src = PLACEHOLDER;
+  if (!image.dataset.fallback) {
+    image.dataset.fallback = "true";
+    image.src = FALLBACK_IMAGE;
+  }
 }
 
 export default function ArticleCard({ a }: { a: SimilarArticle }) {
   const score = Math.max(0, Math.min(1, a.similarity));
-  const image = getArticleImage(a);
 
   return (
     <article className="lift overflow-hidden border border-rule bg-card">
       <div className="relative h-40 overflow-hidden bg-paper">
         <img
-          src={image}
-          alt={`Editorial illustration for ${a.title || "news article"}`}
+          src={getCategoryImage(a.category)}
+          alt={`${a.category} news`}
           loading="lazy"
           onError={useFallbackImage}
           className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
