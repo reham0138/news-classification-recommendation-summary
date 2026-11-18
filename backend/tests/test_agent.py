@@ -112,7 +112,8 @@ def test_token_budget_stops(engine):
 
 def test_model_stops_on_its_own(engine):
     r = agent(engine, FakeLLM([step(call("write_summary", length="short", reason="w")), plain()])).run(ARTICLE)
-    assert r.complete and r.stop_reason.startswith("Saved the summary using the structured fallback") and r.summary
+    assert r.complete and r.stop_reason == "Saved the summary using the no-tools fallback" and r.summary
+    assert [item["tool"] for item in r.trace] == ["write_summary", "extract_key_points", "write_summary", "save_summary"]
 
 
 def test_unsupported_tool_calling_uses_direct_summary_fallback(engine):
@@ -126,13 +127,14 @@ def test_unsupported_tool_calling_uses_direct_summary_fallback(engine):
     assert r.complete
     assert r.summary == "A summary."
     assert r.stop_reason == "Saved the summary using the no-tools fallback"
-    assert [item["tool"] for item in r.trace] == ["write_summary", "save_summary"]
-    assert r.trace[0]["args"] == {"length": "one_sentence"}
+    assert [item["tool"] for item in r.trace] == ["extract_key_points", "write_summary", "save_summary"]
+    assert r.trace[0]["args"] == {"count": 6}
+    assert r.trace[1]["args"] == {"length": "one_sentence"}
     assert "tools" in llm.calls[0]  # first attempt identifies the provider limitation
     assert all("tools" not in request for request in llm.calls[1:])
     assert len([request for request in llm.calls if "response_format" in request]) == 2
     summary_prompt = llm.calls[-1]["messages"][0]["content"]
-    assert "Preserve important names, decisions, outcomes, figures" in summary_prompt
+    assert "financial metric labels exactly as stated" in summary_prompt
     assert "Point A." in summary_prompt
 
 
