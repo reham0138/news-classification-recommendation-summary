@@ -21,7 +21,7 @@ export default function Analyze({ text, setText, meta }: { text: string; setText
       <label htmlFor="article" className="mb-2 block font-medium">Article text</label>
       <textarea id="article" value={text} onChange={(e) => setText(e.target.value)} maxLength={MAX_CHARS} rows={10}
         placeholder="Paste the full text of a news article here…"
-        className="w-full resize-y border border-ink bg-card p-4 font-serif text-base leading-relaxed placeholder:text-muted" />
+        className="w-full resize-y rounded-sm border border-rule bg-card p-5 font-serif text-base leading-relaxed placeholder:text-muted focus:border-accent" />
       <div className="mt-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
         <WordCounter words={words} min={min} recommended={recommended} />
         {text.length >= MAX_CHARS && <p role="alert" className="text-sm text-bad">Limit reached: text beyond {MAX_CHARS.toLocaleString("en")} characters is cut off.</p>}
@@ -30,13 +30,13 @@ export default function Analyze({ text, setText, meta }: { text: string; setText
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button type="button" disabled={busy || words < min}
           onClick={() => run((s) => api.analyze({ text, top_k_categories: 5, top_k_similar: 5 }, s))}
-          className="bg-accent px-5 py-2.5 font-semibold text-onaccent hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45">
+          className="rounded-sm bg-accent px-6 py-3 text-sm font-semibold text-onaccent hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45">
           {busy ? "Analyzing…" : "Analyze"}
         </button>
         <span className="text-sm text-muted">Try an example:</span>
         {EXAMPLES.map((ex) => (
           <button key={ex.id} type="button" onClick={() => setText(ex.text)} disabled={busy}
-            className="border border-rule px-3 py-1.5 text-sm hover:border-ink disabled:opacity-45">{ex.label}</button>
+            className="rounded-sm border border-rule px-3 py-1.5 text-sm text-muted hover:border-accent hover:text-accent disabled:opacity-45">{ex.label}</button>
         ))}
       </div>
 
