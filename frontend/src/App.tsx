@@ -9,20 +9,22 @@ import Summarize from "./components/Summarize";
 
 export default function App() {
   const { conn, meta } = useBackend();
-  const [text, setText] = useState(""); // shared by Analyze and Summarize
+  const [text, setText] = useState("");
   return (
     <>
-      <a href="#analyze" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-20 focus:bg-accent focus:px-3 focus:py-2 focus:text-onaccent">Skip to the analyzer</a>
-      <div className="mx-auto max-w-6xl px-5 sm:px-8 lg:px-10">
+      <a href="#article" className="skip-link">Skip to article workspace</a>
+      <div className="site-shell">
         <Hero conn={conn} meta={meta} />
-        <main className="pb-4">
-          <Section id="analyze" title="Analyze an article" intro="Give a story its place: see the predicted desk, confidence levels, and the closest reporting in your archive.">
-            <Analyze text={text} setText={setText} meta={meta} />
+        <main className="pb-16">
+          <Section id="article" title="Your article, your insight" intro="Paste a news story once. Choose what you want the newsroom assistant to do with it.">
+            <div className="workspace-panel">
+              <div className="workspace-kicker"><span className="live-dot" /> ARTICLE WORKSPACE <span className="workspace-number">01</span></div>
+              <Analyze text={text} setText={setText} meta={meta} />
+              <div className="action-divider"><span>WHAT WOULD YOU LIKE TO DO?</span></div>
+              <Summarize text={text} meta={meta} />
+            </div>
           </Section>
-          <Section id="summarize" title="The essential briefing" intro="An AI agent extracts key facts and produces a concise, structured account. Follow every step it takes.">
-            <Summarize text={text} meta={meta} />
-          </Section>
-          <Section id="search" title="Explore the archive" intro="Search by meaning, not just matching words. Find related reporting across your collection.">
+          <Section id="search" title="Explore the signal" intro="Search your archive by topic, event, or idea — not just exact wording.">
             <Search meta={meta} />
           </Section>
         </main>
