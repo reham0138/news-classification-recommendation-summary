@@ -1,72 +1,52 @@
-# News Intelligence: frontend
+# Frontend
 
-A single-page React app for the News Intelligence API: classify an article, find similar
-stories, get an agent-written summary, and search the archive.
+React 19 + TypeScript + Vite + Tailwind CSS v4 interface for the News Intelligence API.
 
-Stack: Vite, React 19, TypeScript, Tailwind CSS v4. No other runtime libraries.
+The frontend is intentionally a thin presentation layer: classification, embeddings, semantic retrieval, and LLM summarization run in the FastAPI backend.
 
-## Run it
+## Run locally
 
-You need Node 20+ and the backend running first.
-
-**1. Start the backend** (in `backend/`, see the main README for training and setup):
+Prerequisites: Node.js 20+ and a running backend at `http://localhost:8000`.
 
 ```bash
-cd backend
-.venv\Scripts\activate            # Windows   (macOS/Linux: source .venv/bin/activate)
-uvicorn app.main:app --port 8000
-```
-
-Summaries use a local Ollama model by default (no account or credits). Make sure Ollama is running and
-the model exists (`ollama list`). The default is `qwen3:0.6b`; to use another, set `LOCAL_LLM_MODEL`
-before starting the backend. To use Hugging Face instead: `LLM_PROVIDER=huggingface` and `HF_API_KEY=hf_...`.
-
-The first start loads a ~1.3 GB model and takes 10–30 seconds. The API doesn't accept
-connections until it is ready, so the page shows "Offline" until then and retries every 3 seconds.
-
-**2. Start the frontend:**
-
-```bash
-cd frontend
 npm install
-cp .env.example .env              # Windows: copy .env.example .env  (optional)
 npm run dev
 ```
 
-Open http://localhost:5173 (the backend allows this origin for CORS).
+Open http://localhost:5173.
 
-## Settings
+To use a different backend URL, copy `.env.example` to `.env` and update:
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `VITE_API_URL` | `http://localhost:8000` | Base URL of the backend |
+```env
+VITE_API_URL=http://localhost:8000
+```
 
-Only public values belong in `.env`. The LLM key (`HF_API_KEY`) stays on the backend.
-If you serve the frontend from another origin, add it to the backend's `CORS_ORIGINS`.
+Never put model credentials or private API keys in frontend environment variables.
 
-## Other commands
+## Interface workflow
+
+1. Paste an article into the article workspace.
+2. Run analysis to see the predicted category, class probabilities, and related articles.
+3. Request a one-sentence, short, or detailed AI summary.
+4. Search the indexed news corpus using a natural-language query.
+
+The interface includes responsive layouts, light/dark theme support, category-specific editorial imagery, loading states, and user-facing API errors.
+
+## Scripts
 
 ```bash
-npm run build       # type-check + production build into dist/
-npm run preview     # serve the production build locally
-npm run typecheck   # TypeScript only
+npm run dev        # local development server
+npm run typecheck  # TypeScript checks
+npm run build      # type-check and production build
+npm run preview    # preview the production build
 ```
 
-## Code map
+## Source map
 
-```
-src/
-  api.ts           typed client + error messages (the only file that calls fetch)
-  hooks.ts         useRequest (one request at a time, aborts stale ones), useBackend (health + meta), useTheme
-  lib.ts           category colours, formatting helpers
-  examples.ts      the three example articles
-  components/      Hero, Analyze, Summarize, Search, Footer and the small pieces they share
-```
-
-## Notes
-
-- Categories, thresholds and metrics are read from `/api/v1/meta`; nothing is hardcoded except a
-  colour per known category name (unknown names get a stable fallback colour).
-- Summaries take 10–40 s. The progress panel shows the agent's usual order of steps, not live progress,
-  because the API returns everything at once when the agent finishes.
-- Errors are shown as plain sentences. Technical details (request ids, provider messages) are never shown on the page; they go to the browser console.
+- `src/api.ts`: typed API client and error handling.
+- `src/hooks.ts`: backend health/metadata and request hooks.
+- `src/components/Analyze.tsx`: article input, classification, and related results.
+- `src/components/Summarize.tsx`: summary request and result presentation.
+- `src/components/Search.tsx`: semantic corpus search.
+- `src/components/ArticleCard.tsx`: related-article cards and category images.
+- `src/App.tsx`: page composition and shared article workspace.
