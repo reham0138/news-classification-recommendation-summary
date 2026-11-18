@@ -5,7 +5,7 @@ import { catStyle } from "../lib";
 export default function ArticleCard({ a }: { a: SimilarArticle }) {
   const score = Math.max(0, Math.min(1, a.similarity));
   return (
-    <article className="lift flex flex-col gap-2 border border-rule bg-card p-4">
+    <article className="lift flex flex-col gap-3 border border-rule bg-card p-5 sm:p-6">
       <div className="flex items-center justify-between gap-2">
         <CategoryChip category={a.category} />
         <span className="flex items-center gap-2 text-xs tabular-nums text-muted" title="Cosine similarity">
@@ -16,7 +16,7 @@ export default function ArticleCard({ a }: { a: SimilarArticle }) {
           {a.similarity.toFixed(2)}
         </span>
       </div>
-      <h4 className="font-serif text-lg font-semibold leading-snug">{a.title || "Untitled article"}</h4>
+      <h4 className="font-serif text-xl font-semibold leading-snug tracking-tight">{a.title || "Untitled article"}</h4>
       <p className="line-clamp-3 text-sm text-muted">{a.snippet}</p>
     </article>
   );
