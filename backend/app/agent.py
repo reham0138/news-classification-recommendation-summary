@@ -208,8 +208,11 @@ class _Run:
     def extract_key_points(self, count: int = 4) -> str:
         count = max(3, min(int(count), 6))
         data = self._ask(
-            f"Extract the {count} most important factual points from this news article, "
-            "one short sentence each (who, what, when, numbers). Do not add facts that are not in the article.",
+            f"Extract the {count} most important factual points from this news article. Prioritise "
+            "the main event, named people and organisations, decisions and outcomes, dates, financial figures, "
+            "percentages, quantities, and forecasts. Preserve exact numbers and what each number refers to. "
+            "Write one concise factual sentence per point. Do not replace specific facts with vague wording, "
+            "and do not add facts that are not in the article.",
             KEY_POINTS_SCHEMA, max_tokens=500,
         )
         self.key_points = [p.strip() for p in data["points"] if p.strip()][:count]
@@ -219,9 +222,25 @@ class _Run:
         if length not in LENGTHS:
             return f"Error: length must be one of {list(LENGTHS)}"
         focus_line = f" Focus on: {focus}." if focus else ""
+        key_points_instruction = ""
+        if self.key_points:
+            points = "\\n".join(f"- {point}" for point in self.key_points)
+            key_points_instruction = (
+                "\\nUse these extracted key facts as a checklist, while verifying every detail against "
+                f"the original article:\\n{points}"
+            )
         data = self._ask(
-            f"Write a headline (at most 12 words) and a summary of this news article. The summary must be "
-            f"{LENGTHS[length]}.{focus_line} Be neutral and do not add facts that are not in the article.",
+            f"Write a factual headline (at most 12 words) and a summary of this news article. "
+            f"The summary must be {LENGTHS[length]}.{focus_line}"
+            f"{key_points_instruction} "
+            "Prioritise the article's central event and its most consequential supporting facts. "
+            "Preserve important names, decisions, outcomes, figures, percentages, and forecasts exactly. "
+            "For a one-sentence summary, combine the central event with the most important concrete "
+            "detail or figures where possible; do not waste the sentence on vague phrases such as "
+            "'under scrutiny' or 'future strategy' when the article provides specific facts. "
+            "Do not omit major numerical results merely to produce generic wording. "
+            "Do not infer motives, uncertainty, consequences, or context that the article does not state. "
+            "Use only facts supported by the original article; be neutral and concise.",
             SUMMARY_SCHEMA, max_tokens=500,
         )
         self.headline, self.summary = data["headline"].strip(), data["summary"].strip()
@@ -346,6 +365,12 @@ class SummaryAgent:
                     "reason": "Fallback: provider rejected tool calling; generate the summary directly.",
                 })
                 try:
+                    # Build a compact fact checklist before writing. If extraction fails,
+                    # still attempt the summary from the original article.
+                    try:
+                        run.extract_key_points(count=6)
+                    except Exception:
+                        log.exception("key-point extraction failed; continuing with the original article")
                     run.write_summary(length=length)
                     if run.summary:
                         run.trace.append({
