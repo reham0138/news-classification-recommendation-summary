@@ -24,7 +24,7 @@ log = logging.getLogger("news-api")
 # Default: a local Ollama server (no account, no credits, nothing to configure).
 #   LOCAL_LLM_MODEL   model name exactly as `ollama list` shows it   (default: qwen3:0.6b)
 #   LOCAL_LLM_URL     Ollama's OpenAI-compatible address              (default: http://localhost:11434/v1)
-# To use Hugging Face instead:  set LLM_PROVIDER=huggingface  and  HF_API_KEY=hf_...
+# Optional remote provider (not required): set LLM_PROVIDER=huggingface and HF_API_KEY=hf_...
 def _provider() -> str:
     return os.getenv("LLM_PROVIDER", "ollama").strip().lower()
 
@@ -58,7 +58,7 @@ def create_app(
     async def lifespan(app: FastAPI):
         app.state.llm_client = llm_client or make_llm_client(settings)
         if app.state.llm_client is None:
-            log.warning("No LLM configured: /api/v1/summarize is disabled (set HF_API_KEY, or use the default local Ollama).")
+            log.warning("No LLM configured: /api/v1/summarize is disabled. Check LLM_PROVIDER and provider credentials.")
         if engine is not None:
             app.state.engine = engine
         else:
@@ -149,7 +149,7 @@ def create_app(
         """Run the summary agent. Takes ~10-40 s (several LLM calls), so show a spinner in the UI."""
         client = request.app.state.llm_client
         if client is None:
-            raise HTTPException(503, "Summarising is not configured: set the HF_API_KEY environment variable (LLM_PROVIDER=huggingface).")
+            raise HTTPException(503, "Summarising is not configured. Check LLM_PROVIDER and the required provider credentials.")
         check_length(eng, body.text)
         agent = SummaryAgent(eng, client, llm_model_name(settings), settings.agent_max_steps,
                              settings.agent_token_budget)

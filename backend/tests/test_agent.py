@@ -27,14 +27,15 @@ class FakeLLM:
     """chat.completions.create: calls with `tools` pop the next scripted agent step;
     structured tool calls (response_format) get canned JSON."""
 
-    def __init__(self, script, tool_tokens=50, boom_on=None):
+    def __init__(self, script, tool_tokens=50, boom_on=None, error_message="LLM unavailable"):
         self.script, self.tool_tokens, self.boom_on = list(script), tool_tokens, boom_on
+        self.error_message = error_message
         self.calls, self.chat = [], NS(completions=NS(create=self._create))
 
     def _create(self, **kw):
         self.calls.append(kw)
         if self.boom_on is not None and len(self.calls) == self.boom_on:
-            raise RuntimeError("LLM unavailable")
+            raise RuntimeError(self.error_message)
         if "tools" in kw:
             return self.script.pop(0) if self.script else step(call("get_article_overview", reason="loop"))
         name = kw["response_format"]["json_schema"]["name"]
@@ -68,6 +69,7 @@ def test_happy_path(engine):
     assert r.tokens_used == 5 * 100 + 2 * 50                  # loop tokens + tool-internal LLM tokens
     # the article reaches the tool prompts inside tags, flagged as untrusted; /no_think added for Qwen3
     tool_prompt = next(c for c in llm.calls if "tools" not in c)["messages"][0]["content"]
+    assert all("tool_choice" not in c for c in llm.calls)
     assert "<article>" in tool_prompt and "untrusted" in tool_prompt and tool_prompt.endswith("/no_think")
     # the agent loop never sees more than the 300-char preview
     loop_text = json.dumps([c["messages"] for c in llm.calls if "tools" in c])
@@ -110,7 +112,30 @@ def test_token_budget_stops(engine):
 
 def test_model_stops_on_its_own(engine):
     r = agent(engine, FakeLLM([step(call("write_summary", length="short", reason="w")), plain()])).run(ARTICLE)
-    assert not r.complete and r.stop_reason.startswith("Model stopped without saving") and r.summary
+    assert r.complete and r.stop_reason == "Saved the summary using the no-tools fallback" and r.summary
+    assert [item["tool"] for item in r.trace] == ["write_summary", "extract_key_points", "write_summary", "save_summary"]
+
+
+def test_unsupported_tool_calling_uses_direct_summary_fallback(engine):
+    llm = FakeLLM(
+        [],
+        boom_on=1,
+        error_message="LLM server returned 400: gemma3:1b does not support tools",
+    )
+    r = SummaryAgent(engine, llm, "gemma3:1b").run(ARTICLE, "one_sentence")
+
+    assert r.complete
+    assert r.summary == "A summary."
+    assert r.stop_reason == "Saved the summary using the no-tools fallback"
+    assert [item["tool"] for item in r.trace] == ["extract_key_points", "write_summary", "save_summary"]
+    assert r.trace[0]["args"] == {"count": 6}
+    assert r.trace[1]["args"] == {"length": "one_sentence"}
+    assert "tools" in llm.calls[0]  # first attempt identifies the provider limitation
+    assert all("tools" not in request for request in llm.calls[1:])
+    assert len([request for request in llm.calls if "response_format" in request]) == 2
+    summary_prompt = llm.calls[-1]["messages"][0]["content"]
+    assert "financial metric labels exactly as stated" in summary_prompt
+    assert "Point A." in summary_prompt
 
 
 def test_llm_failure_is_captured(engine):
