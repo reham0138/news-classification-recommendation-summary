@@ -15,86 +15,87 @@
   --color-bad: var(--bad);
 }
 
-/* Newsprint (light) and "night edition" (dark). One accent: cobalt. */
+/* Modern newsroom palette: warm paper, ink, and restrained oxblood. */
 :root {
   color-scheme: light;
-  --paper: #f3eee2;
-  --card: #faf7ef;
-  --ink: #1d1c19;
-  --muted: #5f5a4e;
-  --rule: #d2c9b4;
-  --accent: #1f3fd1;
+  --paper: #f6f5f1;
+  --card: #fffefa;
+  --ink: #202124;
+  --muted: #686966;
+  --rule: #deded8;
+  --accent: #8f2638;
   --on-accent: #ffffff;
-  --ok: #1f7a46;
-  --warn: #9a5b00;
-  --bad: #b3261e;
+  --ok: #26734d;
+  --warn: #956018;
+  --bad: #a52b32;
   --cat-l: 30%;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --paper: #17181d;
-  --card: #1f2128;
-  --ink: #ece7da;
-  --muted: #a29d90;
-  --rule: #373a44;
-  --accent: #8ea6ff;
-  --on-accent: #10132a;
-  --ok: #6fd39a;
-  --warn: #f0b45a;
-  --bad: #ff8f86;
+  --paper: #151719;
+  --card: #1e2225;
+  --ink: #f0eee8;
+  --muted: #a6a7a3;
+  --rule: #383d40;
+  --accent: #d78390;
+  --on-accent: #241418;
+  --ok: #79c99c;
+  --warn: #e8b66b;
+  --bad: #f08b91;
   --cat-l: 76%;
 }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; scroll-padding-top: 1.5rem; }
 body {
+  min-width: 320px;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
-  line-height: 1.55;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+button, input, textarea { font: inherit; }
+button { transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 ::selection { background: var(--accent); color: var(--on-accent); }
 
-.rule-double { border-top: 3px double var(--ink); }
-
-/* Category colour: set --h (hue) inline; text/background/border follow the theme. */
+.rule-double { border-top: 1px solid var(--ink); }
 .cat {
   color: hsl(var(--h) 62% var(--cat-l));
-  background: hsl(var(--h) 70% 50% / 0.13);
-  border: 1px solid hsl(var(--h) 60% 50% / 0.38);
+  background: hsl(var(--h) 70% 50% / 0.10);
+  border: 1px solid hsl(var(--h) 60% 50% / 0.30);
 }
-
-/* Winner stamp */
 .stamp {
-  display: inline-flex; flex-direction: column; align-items: center;
-  padding: 0.35rem 1rem 0.45rem;
-  color: hsl(var(--h) 65% var(--cat-l));
-  border: 4px double hsl(var(--h) 60% var(--cat-l));
-  border-radius: 6px;
-  transform: rotate(-3deg);
-  animation: stamp-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  padding: 0.7rem 1rem;
+  color: hsl(var(--h) 62% var(--cat-l));
+  background: var(--card);
+  border: 1px solid hsl(var(--h) 60% 50% / 0.5);
+  border-left: 4px solid currentColor;
+  border-radius: 2px;
 }
-.stamp[data-unsure="true"] { border-style: dashed; opacity: 0.8; }
-@keyframes stamp-in {
-  from { transform: rotate(-12deg) scale(1.9); opacity: 0; }
-  to   { transform: rotate(-3deg) scale(1); opacity: 1; }
-}
+.stamp[data-unsure="true"] { border-style: dashed; opacity: 0.88; }
 
-.lift { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
-.lift:hover { transform: translateY(-3px); box-shadow: 0 8px 18px -10px rgb(0 0 0 / 0.35); border-color: var(--ink); }
+.lift { transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease; }
+.lift:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -18px rgb(0 0 0 / 0.32); border-color: var(--muted); }
+.bar-fill { transition: width 700ms cubic-bezier(0.2, 0.8, 0.2, 1); }
 
-.bar-fill { transition: width 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
-
-/* Progress: a slim bar with a sliding highlight */
 .press { position: relative; height: 3px; background: var(--rule); overflow: hidden; }
 .press::after {
-  content: ""; position: absolute; inset: 0 auto 0 0; width: 30%;
-  background: var(--accent); animation: press 1.4s ease-in-out infinite;
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 28%;
+  background: var(--accent);
+  animation: press 2.4s ease-in-out infinite alternate;
 }
-@keyframes press { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
-.blink { animation: blink 1s ease-in-out infinite; }
-@keyframes blink { 50% { opacity: 0.25; } }
+@keyframes press { from { transform: translateX(0); } to { transform: translateX(260%); } }
+.blink { animation: soft-pulse 2.2s ease-in-out infinite; }
+@keyframes soft-pulse { 50% { opacity: 0.58; } }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
