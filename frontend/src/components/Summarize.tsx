@@ -7,12 +7,9 @@ import { CardGrid } from "./ArticleCard";
 import CategoryChip from "./CategoryChip";
 import { Empty, ErrorNote } from "./Feedback";
 import Progress from "./Progress";
-import Timeline from "./Timeline";
 
 const LENGTHS: { id: SummaryLength; label: string }[] = [
-  { id: "one_sentence", label: "One sentence" },
-  { id: "short", label: "Short" },
-  { id: "detailed", label: "Detailed" },
+  { id: "one_sentence", label: "One line" }, { id: "short", label: "Brief" }, { id: "detailed", label: "In depth" },
 ];
 
 export default function Summarize({ text, meta }: { text: string; meta: Meta | null }) {
@@ -22,66 +19,33 @@ export default function Summarize({ text, meta }: { text: string; meta: Meta | n
   const words = countWords(text);
   const r = state.data;
 
-  return (
-    <div>
-      <p className="text-sm text-muted">
-        Uses the article from the Analyze section above ({words.toLocaleString("en")} {words === 1 ? "word" : "words"}).
-        {words < min && " Add at least " + min + " words there to enable this."}
-      </p>
-      <div className="mt-4 flex flex-wrap items-center gap-4">
-        <fieldset disabled={busy} className="flex">
-          <legend className="sr-only">Summary length</legend>
-          {LENGTHS.map((l) => (
-            <label key={l.id} className={`cursor-pointer border px-3 py-2 text-sm font-medium has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent -ml-px first:ml-0 ${length === l.id ? "z-10 border-ink bg-ink text-paper" : "border-rule hover:border-ink"}`}>
-              <input type="radio" name="length" className="sr-only" checked={length === l.id} onChange={() => setLength(l.id)} />
-              {l.label}
-            </label>
-          ))}
-        </fieldset>
-        <button type="button" disabled={busy || words < min} onClick={() => run((s) => api.summarize({ text, length }, s))}
-          className="rounded-sm bg-accent px-6 py-3 text-sm font-semibold text-onaccent hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45">
-          {busy ? "Working…" : "Summarize with agent"}
-        </button>
-      </div>
-
-      <div aria-live="polite" className="mt-8">
-        {state.status === "idle" && <Empty>The agent reads the article, checks its category, writes a summary and shows every step it took.</Empty>}
-        {state.status === "loading" && <Progress />}
-        {state.status === "error" && <ErrorNote message={state.error!} />}
-        {r && (
-          <div className="space-y-8">
-            {!r.complete && (
-              <p className="border-l-4 border-warn bg-card px-4 py-3 text-sm">
-                <strong className="text-warn">Draft. </strong>The agent stopped before it saved a final version ({friendlyStop(r.stop_reason)}). Check the wording before you rely on it.
-              </p>
-            )}
-            <div>
-              {r.category && (
-                <p className="mb-3 flex items-center gap-2 text-sm text-muted">
-                  <CategoryChip category={r.category} />{r.category_confident === false && "low confidence"}
-                </p>
-              )}
-              <h3 className="font-serif text-3xl font-bold leading-tight sm:text-4xl">{r.headline}</h3>
-              <p className="mt-4 max-w-prose font-serif text-lg leading-relaxed">{r.summary}</p>
-            </div>
-            {r.key_points.length > 0 && (
-              <div>
-                <h3 className="font-serif text-xl font-semibold">Key points</h3>
-                <ul className="mt-2 max-w-prose divide-y divide-rule border-y border-rule">
-                  {r.key_points.map((k) => <li key={k} className="py-2">{k}</li>)}
-                </ul>
-              </div>
-            )}
-            {r.related.length > 0 && (
-              <div><h3 className="mb-3 font-serif text-xl font-semibold">Related articles</h3><CardGrid items={r.related} /></div>
-            )}
-            <Timeline trace={r.trace} />
-            <p className="border-t border-rule pt-3 text-sm tabular-nums text-muted">
-              {r.steps} {r.steps === 1 ? "step" : "steps"}, {r.tokens_used.toLocaleString("en")} tokens, stop reason: {friendlyStop(r.stop_reason)}
-            </p>
-          </div>
-        )}
-      </div>
+  return <div>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="text-sm text-muted">Create an AI-written briefing from the article above · {words.toLocaleString("en")} words</p>
+      <fieldset disabled={busy} className="flex rounded-full border border-rule bg-paper p-1">
+        <legend className="sr-only">Summary length</legend>
+        {LENGTHS.map((l) => <label key={l.id} className={`cursor-pointer rounded-full px-3 py-2 text-xs font-bold transition-colors ${length === l.id ? "bg-ink text-paper shadow" : "text-muted hover:text-ink"}`}><input type="radio" name="length" className="sr-only" checked={length === l.id} onChange={() => setLength(l.id)} />{l.label}</label>)}
+      </fieldset>
     </div>
-  );
+    <button type="button" disabled={busy || words < min} onClick={() => run((s) => api.summarize({ text, length }, s))}
+      className="mt-4 rounded-full border border-accent bg-transparent px-6 py-3 text-sm font-bold text-accent hover:bg-accent hover:text-onaccent disabled:cursor-not-allowed disabled:opacity-40">
+      {busy ? "Preparing your briefing…" : "✧ Generate summary"}
+    </button>
+    {words < min && <p className="mt-2 text-xs text-muted">Add at least {min} words to enable this action.</p>}
+    <div aria-live="polite" className="mt-8">
+      {state.status === "idle" && <Empty>Your concise briefing will appear here.</Empty>}
+      {state.status === "loading" && <Progress />}
+      {state.status === "error" && <ErrorNote message={state.error!} />}
+      {r && <div className="space-y-8">
+        {!r.complete && <p className="rounded-xl border border-warn/40 bg-card px-4 py-3 text-sm"><strong className="text-warn">Draft: </strong>The AI stopped before saving a final version ({friendlyStop(r.stop_reason)}). Review the wording before relying on it.</p>}
+        <div>
+          {r.category && <p className="mb-3 flex items-center gap-2 text-sm text-muted"><CategoryChip category={r.category} />{r.category_confident === false && "Low confidence"}</p>}
+          <h3 className="font-serif text-3xl font-bold leading-tight sm:text-4xl">{r.headline}</h3>
+          <p className="mt-4 max-w-prose text-lg leading-relaxed">{r.summary}</p>
+        </div>
+        {r.key_points.length > 0 && <div><h3 className="font-serif text-xl font-bold">The key takeaways</h3><ul className="mt-3 max-w-prose space-y-3">{r.key_points.map((k) => <li key={k} className="flex gap-3"><span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-accent" /><span>{k}</span></li>)}</ul></div>}
+        {r.related.length > 0 && <div><h3 className="mb-3 font-serif text-xl font-bold">More to explore</h3><CardGrid items={r.related} /></div>}
+      </div>}
+    </div>
+  </div>;
 }
