@@ -29,9 +29,9 @@ export default function Search({ meta }: { meta: Meta | null }) {
         <label htmlFor="q" className="sr-only">Search the archive</label>
         <input id="q" type="search" value={query} onChange={(e) => setQuery(e.target.value)} maxLength={500}
           placeholder="Describe a topic, e.g. “central bank raises rates”"
-          className="min-w-0 flex-1 border border-ink bg-card px-4 py-2.5" />
+          className="min-w-0 flex-1 rounded-sm border border-rule bg-card px-4 py-3 focus:border-accent" />
         <button type="submit" disabled={busy || query.trim().length < 2}
-          className="bg-accent px-5 py-2.5 font-semibold text-onaccent hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45">
+          className="rounded-sm bg-accent px-6 py-3 text-sm font-semibold text-onaccent hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45">
           {busy ? "Searching…" : "Search"}
         </button>
       </form>
