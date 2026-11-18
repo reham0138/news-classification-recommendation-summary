@@ -1,22 +1,74 @@
+import type { SyntheticEvent } from "react";
 import type { SimilarArticle } from "../api";
 import CategoryChip from "./CategoryChip";
 import { catStyle } from "../lib";
 
-const EDITORIAL_IMAGES = [
-  "photo-1504711434969-e33886168f5c",
-  "photo-1529107386315-e1a2ed48a620",
-  "photo-1451187580459-43490279c0fa",
-  "photo-1516321318423-f06f85e504b3",
-  "photo-1470225620780-dba8ba36b745",
+const IMAGE_ROOT = "/images/";
+const PLACEHOLDER = `${IMAGE_ROOT}editorial-placeholder.svg`;
+
+// Match specific subjects before falling back to the model's predicted category.
+// These are local illustrations: no remote image requests or API keys are used.
+const TOPIC_RULES: Array<{ image: string; keywords: string[] }> = [
+  { image: "technology.svg", keywords: ["artificial intelligence", " ai ", "software", "cyber", "hack", "robot", "chip", "nvidia", "google", "apple", "microsoft", "tech", "digital", "semiconductor", "computer", "smartphone"] },
+  { image: "business.svg", keywords: ["stock", "market", "economy", "economic", "business", "company", "companies", "bank", "finance", "financial", "trade", "investment", "investor", "shares", "inflation", "startup", "ceo", "profit"] },
+  { image: "politics.svg", keywords: ["election", "president", "government", "minister", "parliament", "congress", "senate", "politic", "policy", "vote", "voting", "campaign", "white house", "prime minister"] },
+  { image: "sports.svg", keywords: ["football", "soccer", "basketball", "tennis", "cricket", "olympic", "fifa", "nba", "league", "championship", "tournament", "player", "coach", "match", "goal", "team"] },
+  { image: "health.svg", keywords: ["health", "hospital", "doctor", "medical", "medicine", "patient", "disease", "cancer", "virus", "vaccine", "drug", "clinical", "outbreak", "mental health"] },
+  { image: "science.svg", keywords: ["science", "scientist", "research", "study", "space", "nasa", "astronomy", "discovery", "experiment", "physics", "biology", "quantum", "researcher"] },
+  { image: "weather.svg", keywords: ["weather", "climate", "temperature", "storm", "forecast", "rain", "snow", "heatwave", "hurricane", "flood warning", "meteorological"] },
+  { image: "environment.svg", keywords: ["environment", "environmental", "wildlife", "forest", "deforestation", "pollution", "emission", "emissions", "renewable", "solar", "wind energy", "biodiversity", "conservation", "carbon"] },
+  { image: "crime.svg", keywords: ["crime", "police", "court", "lawsuit", "arrest", "murder", "fraud", "criminal", "investigation", "trial", "judge", "prison", "suspect", "prosecutor"] },
+  { image: "disaster.svg", keywords: ["earthquake", "disaster", "wildfire", "tsunami", "landslide", "evacuation", "explosion", "casualties", "rescue", "emergency", "volcano"] },
+  { image: "education.svg", keywords: ["education", "school", "university", "student", "teacher", "classroom", "college", "exam", "curriculum", "scholarship", "campus"] },
+  { image: "arts_entertainment.svg", keywords: ["movie", "film", "music", "celebrity", "actor", "actress", "singer", "album", "concert", "festival", "entertainment", "art", "artist", "tv series"] },
+  { image: "lifestyle.svg", keywords: ["lifestyle", "fashion", "food", "restaurant", "travel", "tourism", "recipe", "beauty", "wellness", "home", "culture"] },
 ];
+
+const CATEGORY_IMAGES: Record<string, string> = {
+  technology: "technology.svg",
+  business: "business.svg",
+  politics: "politics.svg",
+  sports: "sports.svg",
+  health: "health.svg",
+  science: "science.svg",
+  weather: "weather.svg",
+  environment: "environment.svg",
+  crime: "crime.svg",
+  disaster: "disaster.svg",
+  education: "education.svg",
+  arts_entertainment: "arts_entertainment.svg",
+  lifestyle: "lifestyle.svg",
+  religion: "religion.svg",
+};
+
+function getArticleImage(article: SimilarArticle): string {
+  const text = ` ${article.title} ${article.snippet} `.toLowerCase().replace(/[^a-z0-9]+/g, " ");
+  const match = TOPIC_RULES.find((rule) =>
+    rule.keywords.some((keyword) => text.includes(keyword.trim().toLowerCase()))
+  );
+  const category = article.category.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return IMAGE_ROOT + (match?.image ?? CATEGORY_IMAGES[category] ?? "editorial-placeholder.svg");
+}
+
+function useFallbackImage(event: SyntheticEvent<HTMLImageElement>) {
+  const image = event.currentTarget;
+  if (!image.src.endsWith(PLACEHOLDER)) image.src = PLACEHOLDER;
+}
 
 export default function ArticleCard({ a }: { a: SimilarArticle }) {
   const score = Math.max(0, Math.min(1, a.similarity));
-  const image = EDITORIAL_IMAGES[Math.abs(a.id) % EDITORIAL_IMAGES.length];
+  const image = getArticleImage(a);
+
   return (
     <article className="lift overflow-hidden border border-rule bg-card">
       <div className="relative h-40 overflow-hidden bg-paper">
-        <img src={`https://images.unsplash.com/${image}?auto=format&fit=crop&w=900&q=80`} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />
+        <img
+          src={image}
+          alt={`Editorial illustration for ${a.title || "news article"}`}
+          loading="lazy"
+          onError={useFallbackImage}
+          className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-[#11182c]/45 to-transparent" />
         <span className="absolute bottom-3 left-4"><CategoryChip category={a.category} /></span>
       </div>
